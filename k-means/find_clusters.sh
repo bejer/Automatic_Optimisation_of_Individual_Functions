@@ -1,14 +1,25 @@
 #!/bin/bash
 
-if [ ${#} -ne 1 ]; then
-    echo "Usage: ${0} project_name"
+if [ ${#} -ne 3 ]; then
+    echo "Usage: ${0} project_name K_start K_end"
     exit 1
 fi
 
 PROJECT=${1}
 
-K_START=1
-K_END=100
+K_START=${2}
+K_END=${3}
+#K_START=1
+#K_END=100
+
+if [ ! ${K_START} -le ${K_END} ]; then
+    echo "The supplied K_end is not bigger than or equal to K_start"
+    exit 1
+fi
+if [ ${K_START} -lt 1 -o ${K_END} -lt 1 ]; then
+    echo "The supplied K_{start|end} has to be 1 or bigger"
+    exit 1
+fi
 
 Rkmeans_path="${HOME}/Temp/Automatic_Optimisation_of_Individual_Functions/k-means/kmeans.R"
 Rscript="Rscript ${Rkmeans_path}"
