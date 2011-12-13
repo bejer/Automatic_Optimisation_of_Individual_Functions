@@ -29,9 +29,9 @@ for s in features:
 
 # Maybe the static features should just all be placed in one big collection instead of having one collection for each project?
 db_conn = pymongo.Connection("localhost", 27111)
-db = db_conn['static_features']
-static_features_collection = db[project_name]
+db = db_conn["static_features"]
+db_coll = db[project_name]
 
-static_features_collection.insert(static_features)
+db_coll.insert(static_features)
 
 db_conn.disconnect()
