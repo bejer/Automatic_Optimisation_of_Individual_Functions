@@ -1,13 +1,19 @@
 #!/bin/bash
 
+if [ ${#} -ne 1 ]; then
+    echo "Usage: ${0} project_name"
+    exit 1
+fi
+
 PROJECT=${1}
 
 K_START=1
-K_END=10
+K_END=100
 
-Rscript="Rscript kmeans.R" # or how is it?
-R_max_iterations=100
-R_nstarts=10
+Rkmeans_path="${HOME}/Temp/Automatic_Optimisation_of_Individual_Functions/k-means/kmeans.R"
+Rscript="Rscript ${Rkmeans_path}"
+R_max_iterations=1000
+R_nstarts=100
 R_algorithm="Hartigan-Wong"
 R_data_in="${PROJECT}_data_in"
 R_output_centers="${PROJECT}_centers-"

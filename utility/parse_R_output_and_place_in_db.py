@@ -44,7 +44,7 @@ number_end = int(sys.argv[3])
 
 # Database connection
 db_conn = pymongo.Connection("localhost", 27111)
-db = db_conn["test_kmeans"]
+db = db_conn["kmeans"]
 coll = db[project_name]
 
 for i in xrange(number_begin, number_end + 1):
