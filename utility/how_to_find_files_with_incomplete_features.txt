@@ -1,0 +1,1 @@
+find Temp/master_thesis_data_gathering/gsl-1.15 -name '*.ft' -exec grep -v -H -E '((ft[0-9]+)=[0-9\.]+,[[:space:]]){54}ft[0-9]+=[0-9\.]+' {} \;
