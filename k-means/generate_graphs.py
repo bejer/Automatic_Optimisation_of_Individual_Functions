@@ -2,11 +2,18 @@ import subprocess
 import pymongo
 import StringIO
 import string
+import sys
+
+should_generate_plots = sys.argv[1]
+if should_generate_plots != "yes" and should_generate_plots != "no":
+    print("Please say yes or no to the option for generating plots.")
+    exit(1)
 
 path_to_output_graphs = "/home/michael/Temp/master_thesis_data_presentation/gnuplot_output"
 #latex_file_path = "/home/michael/Temp/master_thesis_data_presentation/generated_graph_latex.tex"
 latex_file_path = "{}/generated_graph_latex.tex".format(path_to_output_graphs)
-PROJECT_NAMES = {"sdl_1_2_14", "python_2_7_2", "python_3_2_2"}
+#PROJECT_NAMES = {"sdl_1_2_14", "python_2_7_2", "python_3_2_2", "gsl_1_15"}
+PROJECT_NAMES = {"sdl_1_2_14", "python_2_7_2", "python_3_2_2", "gsl_1_15", "all"}
 K_MIN = 1
 K_MAX = 100
 
@@ -94,6 +101,7 @@ def do_plot(info, name, output_data, output):
     output.write("plot [{}:{}] '-' using 1:2 with points pointtype 7 pointsize 1\n".format(info["k_start"] - 0.5, info["k_end"] + 0.5))
     output.write(output_data.getvalue())
     output.write("e\n")
+    output.write("reset\n")
 
 def plot_k_R_stat(info, output_data, output):
     do_plot(info, "k_totss", output_data["totss"], output)
@@ -120,7 +128,7 @@ def generate_plots(project_name, k_start, k_end):
         for res in db_coll.find({"K" : k}): # Has to do a for each loop to get a single item...
             count = count + 1
             if count > 1:
-                print("Error more entries with K : {}".format(k))
+                print("Error more entries with K : {}, for project: {}".format(k, project_name))
                 exit(1)
             fill_data_k_stat(res, output_data)
                 
@@ -147,17 +155,22 @@ def generate_plots(project_name, k_start, k_end):
     output_data["betweenss"].close()
 
 
-def generate_feature_variation_plot(project_name, feature, feature_count, output):
+def generate_feature_variation_plot(project_name, feature, feature_count, kind_of_plot, output):
     output.write("set terminal epslatex size 15cm, 12cm\n")
-    output.write("set output '{}_graph_feature_variation_for_{}.tex'\n".format(project_name, feature))
+    output.write("set output '{}_graph_feature_variation_for_{}_{}.tex'\n".format(project_name, feature, kind_of_plot))
+    if kind_of_plot == "logaritmic":
+        output.write("set logscale y\n")
+        output.write("set ylabel 'Number of functions with this given value for this particular feature [logscale]'\n")
+    else:
+        output.write("set ylabel 'Number of functions with this given value for this particular feature'\n")
     output.write("set xlabel 'Values'\n")
-    output.write("set ylabel 'Number of functions with this given value for this particular feature'\n")
     output.write("unset key\n")
     output.write("set size 1.2\n")
     output.write("plot '-' using 1:2 with points pointtype 7 pointsize 1\n")
     for f in feature_count:
         output.write("{} {}\n".format(f, feature_count[f]))
     output.write("e\n")
+    output.write("reset\n")
 
 def generate_feature_variation_plots(project_name, features):
     db_conn = pymongo.Connection("localhost", 27111)
@@ -167,14 +180,31 @@ def generate_feature_variation_plots(project_name, features):
     gnuplot_output = StringIO.StringIO()
     feature_count = {}
 
-    for f in features:
-        feature_count = {} # reset feature_count
+    if project_name == "all":
+        for f in features:
+            feature_count = {}
+            for project in PROJECT_NAMES:
+                if project != "all":
+                    db_coll = db[project]
+                    for res in db_coll.find():
+                        feature_count[res[f]] = 0
+            for project in PROJECT_NAMES:
+                if project != "all":
+                    db_coll = db[project]
+                    for res in db_coll.find():
+                        feature_count[res[f]] = feature_count[res[f]] + 1
+            generate_feature_variation_plot(project_name, f, feature_count, "regular", gnuplot_output)
+            generate_feature_variation_plot(project_name, f, feature_count, "logaritmic", gnuplot_output)
+    else:
+        for f in features:
+            feature_count = {} # reset feature_count
         # Has to initialise the dict first since they are looked up in order to add one to the value
-        for res in db_coll.find():
-            feature_count[res[f]] = 0
-        for res in db_coll.find():
-            feature_count[res[f]] = feature_count[res[f]] + 1
-        generate_feature_variation_plot(project_name, f, feature_count, gnuplot_output)
+            for res in db_coll.find():
+                feature_count[res[f]] = 0
+            for res in db_coll.find():
+                feature_count[res[f]] = feature_count[res[f]] + 1
+            generate_feature_variation_plot(project_name, f, feature_count, "regular", gnuplot_output)
+            generate_feature_variation_plot(project_name, f, feature_count, "logaritmic", gnuplot_output)
                 
     db_conn.disconnect()
 
@@ -209,46 +239,165 @@ def latex_k_graph(project_name, graph_type, k_start, k_end, output):
     output.write("\\end{figure}\n")
     output.write("\\clearpage\n")
 
-def latex_feature_variation(project_name, feature, output):
-    output.write("\\subsection{{{}: {}}}\n".format(feature, feature_description_lookup[feature]))
+def latex_feature_variation_(project_name, feature, kind_of_plot, output):
     output.write("\\begin{figure}[h]\n")
     output.write("\\begin{center}\n")
-    output.write("\\input{{{}_graph_feature_variation_for_{}}}\n".format(project_name, feature))
+    output.write("\\input{{{}_graph_feature_variation_for_{}_{}}}\n".format(project_name, feature, kind_of_plot))
     output.write("\\end{center}\n")
     output.write("\\caption{{Showing the variation of the values assigned to feature {}, for {}. Where feature {} is: {}}}\n".format(feature, escape_characters(project_name), feature, feature_description_lookup[feature]))
     output.write("\\end{figure}\n")
+
+def latex_feature_variation(project_name, feature, output):
+    output.write("\\subsection{{{}: {}}}\n".format(feature, feature_description_lookup[feature]))
+#    latex_feature_variation_(project_name, feature, "regular", output)
+    latex_feature_variation_(project_name, feature, "logaritmic", output)
     output.write("\\clearpage\n")
 
-def generate_latex(info, project_names, features):
-    if len(info["k_start"]) != len(info["k_end"]):
-        print("Error when trying to generate latex: the length of k_start != k_end!")
-        exit(1)
+# def generate_latex(info, project_names, features):
+#     if len(info["k_start"]) != len(info["k_end"]):
+#         print("Error when trying to generate latex: the length of k_start != k_end!")
+#         exit(1)
 
-    latex_output = StringIO.StringIO()
+#     latex_output = StringIO.StringIO()
 
-    header_name = "graph_header"
-    latex_output.write("\\input{{{}}}\n".format(header_name))
-    latex_output.write("\\begin{document}\n")
-    latex_output.write("\\tableofcontents\n")
+#     header_name = "graph_header"
+#     latex_output.write("\\input{{{}}}\n".format(header_name))
+#     latex_output.write("\\begin{document}\n")
+#     latex_output.write("\\tableofcontents\n")
 
-    for project_name in project_names:
-        info["project_name"] = project_name
-        latex_output.write("\\chapter{{{}}}\n".format(escape_characters(project_name)))
-        latex_output.write("\\section{R stats}\n")
-        for gt in full_graph_type_name:
-            for i in xrange(len(info["k_start"])):
-                latex_k_graph(info["project_name"], gt, info["k_start"][i], info["k_end"][i], latex_output)
+#     for project_name in project_names:
+#         info["project_name"] = project_name
+#         latex_output.write("\\chapter{{{}}}\n".format(escape_characters(project_name)))
+#         latex_output.write("\\section{R stats}\n")
+#         for gt in full_graph_type_name:
+#             for i in xrange(len(info["k_start"])):
+#                 latex_k_graph(info["project_name"], gt, info["k_start"][i], info["k_end"][i], latex_output)
         
-        latex_output.write("\\section{Variation of feature values}\n")
-        for f in features:
-            latex_feature_variation(info["project_name"], f, latex_output)
+#         latex_output.write("\\section{Variation of feature values}\n")
+#         for f in features:
+#             latex_feature_variation(info["project_name"], f, latex_output)
 
 
-    latex_output.write("\\end{document}\n")
+#     latex_output.write("\\end{document}\n")
 
-    latex_file = open(latex_file_path, "w")
-    latex_file.write(latex_output.getvalue())
-    latex_file.close()
+#     latex_file = open(latex_file_path, "w")
+#     latex_file.write(latex_output.getvalue())
+#     latex_file.close()
+
+def latex_do_begin(output):
+    output.write("\\input{graph_header}\n")
+    output.write("\\begin{document}\n")
+    output.write("\\tableofcontents\n")
+
+def latex_do_end(output):
+    output.write("\\end{document}\n")
+
+def latex_do_new_project(output, project_name):
+    output.write("\\chapter{{{}}}\n".format(escape_characters(project_name)))
+
+def latex_do_R_stats(output, project_name, info):
+    output.write("\\section{R stats}\n")
+    for gt in full_graph_type_name:
+        for i in xrange(len(info["k_start"])):
+            latex_k_graph(project_name, gt, info["k_start"][i], info["k_end"][i], output)
+
+def latex_do_R_size_table(output, project_name, k):
+    output.write("\\subsection{Cluster sizes}\n")
+    output.write("\\begin{longtable}{r")
+    for i in xrange(0, k):
+        output.write("|c")
+    output.write("}\n")
+    output.write("\\hline\n")
+    output.write("\\textbf{K}")
+    for i in xrange(1, k + 1):
+        output.write("&\\textbf{{c{}}}".format(i))
+    output.write("\\\\\n\\hline\n")
+    output.write("\\endfirsthead\n")
+    output.write("\\hline\n")
+    output.write("\\textbf{K}")
+    for i in xrange(1, k + 1):
+        output.write("&\\textbf{{c{}}}".format(i))
+    output.write("\\\\\n\\hline\n")
+    output.write("\\endhead\n")
+    output.write("\\hline \multicolumn{{{}}}{{r}}{{{{Continues...}}}}\\\\\n".format(k + 1))
+    output.write("\\endfoot\n")
+    output.write("\\hline\n")
+    output.write("\caption{Sizes of the clusters (c\#) found when k-means clustering with the given K.}\n")
+    # \label{tab:}
+    output.write("\\endlastfoot\n")
+
+    db_conn = pymongo.Connection("localhost", 27111)
+    db = db_conn["kmeans"]
+    db_coll = db[project_name]
+
+    for row in xrange(1, k + 1):
+        output.write("{}".format(row))
+        for col in xrange(1, k + 1):
+            if col > row:
+                output.write(" & -")
+            else:
+                output.write(" & {}".format(db_coll.find({"K" : row})[0]["R_stats"]["size"]["{}".format(col)]))
+
+        output.write("\\\\\n")
+
+    db_conn.disconnect()
+
+    output.write("\\end{longtable}\n")
+# Want the R_withinss_table to be on the same page as this one
+#    output.write("\\clearpage\n")
+
+# Should refactor the common table code into a separate function to avoid having duplicated code
+def latex_do_R_withinss_table(output, project_name, k):
+    output.write("\\subsection{Within-Cluster Sum of Squares for each Cluster - in millions}\n")
+    output.write("\\begin{longtable}{r")
+    for i in xrange(0, k):
+        output.write("|c")
+    output.write("}\n")
+    output.write("\\hline\n")
+    output.write("\\textbf{K}")
+    for i in xrange(1, k + 1):
+        output.write("&\\textbf{{c{}}}".format(i))
+    output.write("\\\\\n\\hline\n")
+    output.write("\\endfirsthead\n")
+    output.write("\\hline\n")
+    output.write("\\textbf{K}")
+    for i in xrange(1, k + 1):
+        output.write("&\\textbf{{c{}}}".format(i))
+    output.write("\\\\\n\\hline\n")
+    output.write("\\endhead\n")
+    output.write("\\hline \multicolumn{{{}}}{{r}}{{{{Continues...}}}}\\\\\n".format(k + 1))
+    output.write("\\endfoot\n")
+    output.write("\\hline\n")
+    output.write("\caption{Within-cluster sum of squares, in millions, for the clusters (c\#) found when k-means clustering with the given K.}\n")
+    # \label{tab:}
+    output.write("\\endlastfoot\n")
+
+    db_conn = pymongo.Connection("localhost", 27111)
+    db = db_conn["kmeans"]
+    db_coll = db[project_name]
+
+    for row in xrange(1, k + 1):
+        output.write("{}".format(row))
+        for col in xrange(1, k + 1):
+            if col > row:
+                output.write(" & -")
+            else:
+                number = float(db_coll.find({"K" : row})[0]["R_stats"]["withinss"]["{}".format(col)])
+                number = number / 1000000
+                output.write(" & {}".format(round(number, 1)))
+
+        output.write("\\\\\n")
+    
+    db_conn.disconnect()
+
+    output.write("\\end{longtable}\n")
+    output.write("\\clearpage\n")
+
+
+def latex_do_feature_variation(output, project_name):
+    output.write("\\section{Variation of feature values}\n")
+    for f in features:
+        latex_feature_variation(project_name, f, output)
 
 
 ##########################################################################
@@ -262,11 +411,25 @@ features = []
 for i in xrange(1, 55 + 1):
     features.append("ft{}".format(i))
 
+if should_generate_plots == "yes":
+    for p in PROJECT_NAMES:
+        for i in xrange(len(info["k_start"])):
+            generate_plots(p, info["k_start"][i], info["k_end"][i])
+        generate_feature_variation_plots(p, features)
+
+
+latex_output = StringIO.StringIO()
+
+latex_do_begin(latex_output)
 for p in PROJECT_NAMES:
-    generate_plots(p, K_MIN, K_MAX)
-    generate_plots(p, 1, 20)
-    generate_plots(p, 1, 10)
+    latex_do_new_project(latex_output, p)
+    latex_do_R_stats(latex_output, p, info)
+    latex_do_R_size_table(latex_output, p, 12) # Manually chosen K=15 for which K's to show sizes (has to fit the document)
+    latex_do_R_withinss_table(latex_output, p, 12)
+    latex_do_feature_variation(latex_output, p)
+latex_do_end(latex_output)
 
-    generate_feature_variation_plots(p, features)
-
-generate_latex(info, PROJECT_NAMES, features)
+latex_file = open(latex_file_path, "w")
+latex_file.write(latex_output.getvalue())
+latex_file.close()
+latex_output.close()
