@@ -1,25 +1,24 @@
-import sys
 import pymongo
+import argparse
 
-# Could take in a parameter describing the filename that should be appended to the project name
-# Could output the function name and/or the project name (maybe combined) as the row name, this column can be "ignored" in R.
-# Could hardcode the features which would make it easier to ignore/disable features and redo clustering with a subset of the features
+parser = argparse.ArgumentParser(description="Generating data file with a feature set on each line.")
+parser.add_argument("--project_name", action="store", required=True)
+parser.add_argument("--sub_projects", action="store", nargs="+")
+parser.add_argument("--static_features", action="store", nargs="+", required=True)
+parser.add_argument("--database_name", action="store", default="static_features")
 
-# Fails if there is no argument supplied
-project_name = sys.argv[1]
+args = parser.parse_args()
 
-number_of_features = 55
-feature_labels = []
-for i in xrange(1, number_of_features + 1):
-    feature_labels.append("ft{}".format(i))
 
-db_conn = pymongo.Connection("localhost", 27111)
-db = db_conn['static_features']
-db_coll = db[project_name]
+### Left over code for manually generating the features
+# number_of_features = 55
+# feature_labels = []
+# for i in xrange(1, number_of_features + 1):
+#     feature_labels.append("ft{}".format(i))
 
-file = open("{}_data_in".format(project_name), "w")
+file = open("{}_data_in".format(args.project_name), "w")
 first = True
-for fl in feature_labels:
+for fl in args.static_features:
     if first == True:
         file.write("{}".format(fl))
         first = False
@@ -27,15 +26,26 @@ for fl in feature_labels:
         file.write(" {}".format(fl))
 file.write("\n")
 
-for f in db_coll.find().sort("function_name", pymongo.ASCENDING):
-#    print("fn: {}".format(f["function_name"])) # Used to see the list of functions
-    first = True
-    for fl in feature_labels:
-        if first == True:
-            file.write("{}".format(f[fl]))
-            first = False
-        else:
-            file.write(" {}".format(f[fl]))
+
+db_conn = pymongo.Connection("localhost", 27111)
+db = db_conn[args.database_name]
+
+if args.sub_projects == None:
+    projects_to_include = args.project_name
+else:
+    projects_to_include = args.sub_projects
+
+for p in projects_to_include:
+    db_coll = db[p]
+    for f in db_coll.find().sort("function_name", pymongo.ASCENDING):
+        first = True
+        for fl in args.static_features:
+            if first == True:
+                file.write("{}".format(f[fl]))
+                first = False
+            else:
+                file.write(" {}".format(f[fl]))
+        file.write("\n")
     file.write("\n")
 
 db_conn.disconnect()
