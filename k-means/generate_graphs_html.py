@@ -35,17 +35,33 @@ def fill_data_k_stat(res, output_data):
 ##########################################################################
 # Generate plots
 ##########################################################################
+# def do_plot(info, name, output_data, output):
+# #    output.write("set terminal epslatex size 15cm, 9cm\n")
+#     output.write("set terminal png\n")
+#     output.write("set output '{}_graph_{}_nstart_{}_algorithm_{}_K_{}-{}.png'\n".format(info["project_name"], name, info["nstart"], info["algorithm"], info["k_start"], info["k_end"]))
+#     output.write("set xlabel 'Number of clusters, K'\n")
+#     output.write("unset key\n")
+# #    output.write("set size 1.2\n")
+#     output.write("plot [{}:{}] '-' using 1:2 with points pointtype 7 pointsize 1\n".format(info["k_start"] - 0.5, info["k_end"] + 0.5))
+#     output.write(output_data.getvalue())
+#     output.write("e\n")
+#     output.write("reset\n")
+
 def do_plot(info, name, output_data, output):
 #    output.write("set terminal epslatex size 15cm, 9cm\n")
     output.write("set terminal png\n")
+#    output.write("set output '{}_graph_{}_nstart_{}_algorithm_{}_K_{}-{}.tex'\n".format(info["project_name"], name, info["nstart"], info["algorithm"], info["k_start"], info["k_end"]))
     output.write("set output '{}_graph_{}_nstart_{}_algorithm_{}_K_{}-{}.png'\n".format(info["project_name"], name, info["nstart"], info["algorithm"], info["k_start"], info["k_end"]))
     output.write("set xlabel 'Number of clusters, K'\n")
+    if name == "k_betweenss":
+        output.write("set ylabel 'Between-cluster sum of squares'\n")
     output.write("unset key\n")
 #    output.write("set size 1.2\n")
     output.write("plot [{}:{}] '-' using 1:2 with points pointtype 7 pointsize 1\n".format(info["k_start"] - 0.5, info["k_end"] + 0.5))
     output.write(output_data.getvalue())
     output.write("e\n")
     output.write("reset\n")
+
 
 def plot_k_R_stat(info, output_data, output):
     do_plot(info, "k_totss", output_data["totss"], output)
@@ -142,6 +158,7 @@ def generate_html_output(info):
 # Main
 ######################
 generate_plots("all", 1, 20)
+#generate_plots("all", 1, 10)
 
 info = {}
 info["project_name"] = "all"
@@ -150,4 +167,5 @@ info["nstart"] = [1, 10, 100, 1000]
 info["algorithm"] = ["Hartigan-Wong", "Lloyd", "Forgy", "MacQueen"]
 info["k_start"] = 1
 info["k_end"] = 20
+#info["k_end"] = 10
 generate_html_output(info)

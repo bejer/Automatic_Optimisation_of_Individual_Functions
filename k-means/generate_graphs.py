@@ -96,6 +96,8 @@ def do_plot(info, name, output_data, output):
     output.write("set terminal epslatex size 15cm, 9cm\n")
     output.write("set output '{}_graph_{}_K_{}-{}.tex'\n".format(info["project_name"], name, info["k_start"], info["k_end"]))
     output.write("set xlabel 'Number of clusters, K'\n")
+    if name == "k_betweenss":
+        output.write("set ylabel 'Between-cluster sum of squares'\n")
     output.write("unset key\n")
     output.write("set size 1.2\n")
     output.write("plot [{}:{}] '-' using 1:2 with points pointtype 7 pointsize 1\n".format(info["k_start"] - 0.5, info["k_end"] + 0.5))
