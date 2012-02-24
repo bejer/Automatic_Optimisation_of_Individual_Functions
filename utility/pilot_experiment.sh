@@ -23,12 +23,12 @@ function compile_bitcnts () {
     done
 }
 
-# Not doing summing (just a single run for each sample): $1=iterations, $2={bitcount|input}
+# Not doing summing (just a single run for each sample): $1=iterations, $2={bitcount|input}, $3=text={fixed_frequency|dynamic_frequency}
 function gprof_collect () {
     for i in 0 1 2 3; do
 	for itr in `seq 1 $1`; do
 	    ./bitcnt_O${i}_${gprof_text}.out $2 > /dev/null
-	    mv gmon.out gmon_bitcnt_O${i}_${gprof_text}_${itr}.out
+	    mv gmon.out gmon_bitcnt_O${i}_${gprof_text}_${3}_${itr}.out
 	done
     done
 }
@@ -48,17 +48,57 @@ function setup_oprofile () {
 function shutdown_oprofile () {
     sudo opcontrol --shutdown
     # Deinit can be a bit overkill... atleast considering I'm not --init'ing it in the setup function
-    sudo opcontrol --deinit
+#    sudo opcontrol --deinit
 }
 
+# Just a single run for each sample : $1=iterations, $2={bitcount|input}, $3=text={fixed_frequency|dynamic_frequency}
 function oprofile_collect () {
     for i in 0 1 2 3; do
+	setup_oprofile bitcnt_O${i}_${oprofile_text}.out
+	sudo opcontrol --start
 	for itr in `seq 1 $1`; do
+	    ./bitcnt_O${i}_${oprofile_text}.out $2 > /dev/null
+	    sudo opcontrol --save="bitcnt_O${i}_${oprofile_text}.out_${3}_${itr}"
+	done
+	shutdown_oprofile
+    done
+}
 	    
-
+my_iterations=40
+my_bitcount=1125000
 
 # Main
 cd ~/Temp/master_thesis_profiling/master-thesis/benchmark-suites/cBench-v1.1/automotive_bitcount/src/
+make clean
+echo "--- Compiling the binaries ---"
 compile_bitcnts
 
-gprof_collect 40 1125000
+echo "------------------------------------------"
+echo "Doing gprof collecting using fixed frequency:"
+gprof_collect ${my_iterations} ${my_bitcount} "fixed_frequency"
+echo "------------------------------------------"
+echo "------------------------------------------"
+echo "Doing oprofile collecting using fixed frequency:"
+oprofile_collect ${my_iterations} ${my_bitcount} "fixed_frequency"
+echo "------------------------------------------"
+
+# Change to use dynamic frequency
+# Use: 'sudo cpupower -c all frequency-set -g {powersave|performance}' [According to my quick testing the performance policy causes the CPU to use boosting and get a frequency around 2.5 or 2.6 GHz].
+# Using 'ondemand' gives quite some variation -> should I record this and document it in the master thesis?
+
+# echo "------------------------------------------"
+# echo "Doing gprof collecting using dynamic frequency:"
+# gprof_collect ${my_iterations} ${my_bitcount} "dynamic_frequency"
+# echo "------------------------------------------"
+# echo "------------------------------------------"
+# echo "Doing oprofile collecting using dynamic frequency:"
+# oprofile_collect ${my_iterations} ${my_bitcount} "dynamic_frequency"
+# echo "------------------------------------------"
+
+### TODO ###
+# Find out how to analyse the results and do statistics on them, including handling the inaccuracy
+
+
+
+### To think about ###
+# See how well the performance measurements are working when utilising the {4|8} cores - they should have their own local cache, but share the memory accesses, so could have some unreliable outcome or effects on the results/performance.
