@@ -3,205 +3,220 @@
 # Summary:
 # Pilot experiment for measuring the performance of functions (and later see if the measured difference is statistically different and such)
 
-# Setup the environment for compiling with the ctuning tools (using {.|source} to have the effects apply to the current shell)
-. /home/michael/Temp/ctuning/ctuning-cc-2.5-gcc-4.4.4-ici-2.05-milepost-2.1_with_ccc-framework/ctuning-cc-2.5-gcc-4.4.4-ici-2.05-milepost-2.1/gcc_ici_environment_compile.sh
+# TODO: [very important]: Place all the compilation and gprof stuff in a shell script that is executed, to not affect the path and dynamic library linking setup for other programs that are working on the data -> so the compilation, measurement and raw file generation should be placed in its own shell script! [ But have commented it out for now, to test my R scripts! ]
 
-gprof_text=gprof
-oprofile_text=oprofile
+# Compile and profile the program and functions
+# !! UNCOMMENTED: no need to regenerate the data when testing the analysis !! #${HOME}/Temp/Automatic_Optimisation_of_Individual_Functions/utility/pilot_experiment_compilation_and_profiling.sh
 
-# Compile the automative_bitcount cBench test program : $1=[O<argument>], $2=flags, $3=output_text
-function compile_bitcnt () {
-#(cd ~/Temp/master_thesis_profiling/master-thesis/benchmark-suites/cBench-v1.1/automotive_bitcount/src/; gcc -Wall -o bitcnt_O$1_$3.out -O$1 $2 *.c)
-gcc -Wall -o bitcnt_O$1_$3.out -O$1 $2 *.c
-}
-
-function compile_bitcnts () {
+###################################################
+# Analysis - Statistics
+###################################################
+function generate_function_descriptive_statistics_files () {
+    # Use R for generating files with the sd(standard deviation) or variance and mean
+    # Possible arguments could be: <invoke R script>: <input_file> <output_file_mean> <output_file_sd> <output_file_var>
+    descriptive_statistics="${HOME}/Temp/Automatic_Optimisation_of_Individual_Functions/utility/pilot_experiment_descriptive_statistics.R"
+    # Although this for loop iteration could be replaced with listing all the files that has the right naming scheme: program_O<i>_function_raw.txt
     for i in 0 1 2 3; do
-	compile_bitcnt $i "-pg" "${gprof_text}"
-#	compile_bitcnt $i "-p" "with_-p"
-	compile_bitcnt $i "" "${oprofile_text}"
-    done
-}
-
-# Not doing summing (just a single run for each sample): $1=iterations, $2={bitcount|input}, $3=text={fixed_frequency|dynamic_frequency}
-function gprof_collect () {
-    for i in 0 1 2 3; do
-	for itr in `seq 1 $1`; do
-	    ./bitcnt_O${i}_${gprof_text}.out $2 > /dev/null
-	    mv gmon.out gmon_bitcnt_O${i}_${gprof_text}_${3}_${itr}.out
-	done
-    done
-}
-
-# Setup oprofiling, $1=binary_name
-function setup_oprofile () {
-    # Make nmi_watchdog not use the counter resource
-    echo 0 | sudo tee /proc/sys/kernel/nmi_watchdog
-    # Reset session
-    sudo opcontrol --reset
-
-    # Start oprofiling
-    sudo opcontrol --no-vmlinux --image=$1
-    sudo opcontrol --start-daemon # To avoid profiling the daemon startup (not that necessary here)
-}    
-
-function shutdown_oprofile () {
-    sudo opcontrol --shutdown
-    # Deinit can be a bit overkill... atleast considering I'm not --init'ing it in the setup function
-#    sudo opcontrol --deinit
-}
-
-# Just a single run for each sample : $1=iterations, $2={bitcount|input}, $3=text={fixed_frequency|dynamic_frequency}
-function oprofile_collect () {
-    for i in 0 1 2 3; do
-	setup_oprofile bitcnt_O${i}_${oprofile_text}.out
-	sudo opcontrol --start
-	for itr in `seq 1 $1`; do
-	    ./bitcnt_O${i}_${oprofile_text}.out $2 > /dev/null
-	    sudo opcontrol --save="bitcnt_O${i}_${oprofile_text}.out_${3}_${itr}"
-	done
-	shutdown_oprofile
-    done
-}
-	    
-my_iterations=40
-my_bitcount=1125000
-
-#######################################################
-# Main
-#######################################################
-cd ~/Temp/master_thesis_profiling/master-thesis/benchmark-suites/cBench-v1.1/automotive_bitcount/src/
-#+++++++++++++++++++++++++++++
-# make clean
-# echo "--- Compiling the binaries ---"
-# compile_bitcnts
-
-# echo "------------------------------------------"
-# echo "Doing gprof collecting using fixed frequency:"
-# gprof_collect ${my_iterations} ${my_bitcount} "fixed_frequency"
-# echo "------------------------------------------"
-# echo "------------------------------------------"
-# echo "Doing oprofile collecting using fixed frequency:"
-# oprofile_collect ${my_iterations} ${my_bitcount} "fixed_frequency"
-# echo "------------------------------------------"
-#+++++++++++++++++++++++++++++
-# Change to use dynamic frequency
-# Use: 'sudo cpupower -c all frequency-set -g {powersave|performance}' [According to my quick testing the performance policy causes the CPU to use boosting and get a frequency around 2.5 or 2.6 GHz].
-# Using 'ondemand' gives quite some variation -> should I record this and document it in the master thesis?
-
-# echo "------------------------------------------"
-# echo "Doing gprof collecting using dynamic frequency:"
-# gprof_collect ${my_iterations} ${my_bitcount} "dynamic_frequency"
-# echo "------------------------------------------"
-# echo "------------------------------------------"
-# echo "Doing oprofile collecting using dynamic frequency:"
-# oprofile_collect ${my_iterations} ${my_bitcount} "dynamic_frequency"
-# echo "------------------------------------------"
-
-#######################################################
-# Parse the generated data (performance measurements)
-#######################################################
-# Obtain the function names
-# # Just a single run for each sample : $1=iterations, $2={bitcount|input}, $3=text={fixed_frequency|dynamic_frequency}
-# function oprofile_collect () {
-#     for i in 0 1 2 3; do
-# 	setup_oprofile bitcnt_O${i}_${oprofile_text}.out
-# 	sudo opcontrol --start
-# 	for itr in `seq 1 $1`; do
-# 	    ./bitcnt_O${i}_${oprofile_text}.out $2 > /dev/null
-# 	    sudo opcontrol --save="bitcnt_O${i}_${oprofile_text}.out_${3}_${itr}"
-# 	done
-# 	shutdown_oprofile
-#     done
-# }
-# Not doing summing (just a single run for each sample): $1=iterations, $2={bitcount|input}, $3=text={fixed_frequency|dynamic_frequency}
-# function gprof_collect () {
-#     for i in 0 1 2 3; do
-# 	for itr in `seq 1 $1`; do
-# 	    ./bitcnt_O${i}_${gprof_text}.out $2 > /dev/null
-# 	    mv gmon.out gmon_bitcnt_O${i}_${gprof_text}_${3}_${itr}.out
-# 	done
-#     done
-# }
-
-#######################################################
-# Awk example
-#######################################################
-# Output from gprof could look like:
-# Command: gprof -bp bitcnt_O3_gprof.out gmon_bitcnt_O3_gprof_fixed_frequency_9.out 
-# Flat profile:
-#
-# Each sample counts as 0.01 seconds.
-#   %   cumulative   self              self     total           
-#  time   seconds   seconds    calls  ms/call  ms/call  name    
-#  27.25      0.13     0.13  2250000     0.00     0.00  bit_shifter
-#  22.89      0.23     0.11  2250000     0.00     0.00  bit_count
-#  13.08      0.29     0.06        2    30.08   225.59  main1
-#   8.72      0.33     0.04  2250000     0.00     0.00  BW_btbl_bitcount
-#   8.72      0.37     0.04  2250000     0.00     0.00  bitcount
-#   8.72      0.41     0.04  2250000     0.00     0.00  ntbl_bitcount
-#   6.54      0.44     0.03  2250000     0.00     0.00  ntbl_bitcnt
-#   2.18      0.45     0.01  2250000     0.00     0.00  AR_btbl_bitcount
-#   1.09      0.46     0.01                             alloc_bit_array
-#   1.09      0.46     0.01                             btbl_bitcnt
-#
-# In this case alloc_bit_array and btbl_bitcnt are not shown on all the data gathered, so just ignoring them for this pilot experiment.
-# The command:
-# gprof -bp bitcnt_O3_gprof.out gmon_bitcnt_O3_gprof_fixed_frequency_9.out | awk -F ' ' '$7 != "name" && $7 != "" { print $7; }'
-# Produces a list of the function names without the two functions that are being ignored (since they are missing fields to get anything filled in the $7'th variable).
-# Now all these function names can be appended to a file, sorted and have all the duplicates removed - ending up with a list of the function names that can be measured/tracked [Although it is not guarenteed that every measurement contains data for those functions? - or are they guarenteed due to call graph tracking, given the program is deterministic? - number of calls should always be accurate...]
-# Example command:
-# for i in `seq 1 20`; do gprof -bp bitcnt_O3_gprof.out gmon_bitcnt_O3_gprof_fixed_frequency_${i}.out | awk -F ' ' '$7 != "name" && $7 != "" { print $7; }'; done | sort -u
-#
-# TODO:  [ Keep in mind this is just a prototype, so it doesn't really matter if the code is making some assumptions, such as that the same functions are shown on all reports where the amount of calls is counted ]
-# Current flow:
-# - Obtain function names for each program (they are being compared to other programs with different set of optimisations - so the list should be not unique, but a list where the names appears exactly the same amount of times and such - if there is any "abnormality" it should be reported so I can take action when doing it all automatically....
-# - Generate R table data file for each program with the function names as columns and measurements as rows.
-#   This is done by grapping the measurements where the lines contain $7 == "function_name" { print $?; } with awk.
-#   [ But how to do a for loop over the found function names? - should they be put into a tmp file and then iterated over? ]
-# - Do the test statistics on the datasets. (both t-test and mann-whitney)
-
-###awk_obtain_function_names= ## DOESN'T seem like the awk command can be placed inside a variable... - my test scripts fails with awk complaining about the ' char being invalid or " is never terminated...
-
-function_names="my_obtained_function_names.txt"
-
-# : $1=iterations, $2=text={fixed_frequency|dynamic_frequency}
-function obtain_function_names () {
-    for i in 0 1 2 3; do
-	#Obtain the function names
-	for itr in `seq 1 $1`; do
-	    gprof -bp bitcnt_O${i}_${gprof_text}.out gmon_bitcnt_O${i}_${gprof_text}_${2}_${itr}.out | awk -F ' ' '$7 != "name" && $7 != "" { print $7; }' >> ${function_names}.tmp
-	done
-    done
-
-    cat ${function_names}.tmp | sort -u > ${function_names}
-    rm ${function_names}.tmp
-}
-
-# : $1=iterations, $2=text={fixed_frequency|dynamic_frequency}
-function generate_R_data_table () {
-    for i in 0 1 2 3; do
-	[ -f "my_R_data_table_O${i}.txt" ] && rm "my_R_data_table_O${i}.txt"
 	for funname in `cat ${function_names}`; do
-	    echo -n "${funname} " >> my_R_data_table_O${i}.txt
+	    Rscript ${descriptive_statistics} "program_O${i}_${funname}_raw.txt" "program_O${i}_${funname}_mean.txt" "program_O${i}_${funname}_sd.txt" "program_O${i}_${funname}_var.txt"
 	done
-	
-	for itr in `seq 1 $1`; do
-	    # Insert new line for each measurement / run / iteration
-	    echo "" >> my_R_data_table_O${i}.txt
-	    for fun in `cat ${function_names}`; do
-		gprof -bp bitcnt_O${i}_${gprof_text}.out gmon_bitcnt_O${i}_${gprof_text}_${2}_${itr}.out | awk -F ' ' "\$7 == \"${fun}\" { print \$3; }" > my_R_data_table_value_holder.txt
-		echo -n "`cat my_R_data_table_value_holder.txt` " >> my_R_data_table_O${i}.txt
+    done
+}
+
+# TODO: Get rid of the "fixed frequency" text - it doesn't get reflected in the produced result file names....
+
+
+# !! UNCOMMENTED: for testing latex generator !! #generate_function_descriptive_statistics_files
+
+########################
+# Test comparisons     #
+########################
+
+# : $1=<optcase_function>_raw.txt, $2=<optcase_function>_raw.txt, $3=text=file_to_save_results_in [ or at least a prefix to the files, since I'm doing multiple comparisons
+function compare_functions () {
+    # The wilcox.test requires data vectors without the header, so no data frames - easy work around is to just include the function name as a parameter to the R-script that is making the tests. Then the data supplied to the wilcox.test can be extracted by mydata$functionname.
+    
+    # Apparently the wilcox.test function does not handle "ties" (meaning the two data sets should not share the same values [or one data set should have unique data?]), because the assumption is that the data is sampled from a continuous distribution (but my time measurements are 'discretisied'/truncated to a few digits and are therefore not unique - I don't know how trobulesome this actually is for the wilcox.test test-statistic for my data/measurements.
+    # See http://tolstoy.newcastle.edu.au/R/e8/help/09/12/9200.html for more information on the 'ties' problem.
+
+    # The results from the tests cannot be written directly to a file, instead the result$p.value or similar can be used to save a single value - together with their means (or just use the means from the already created descriptive statistics to find out which optcase is faster.
+
+    # Other notes:
+    #  - calculate the amount of possible combinations of compiler flags
+    #  - I'm not trying to see how well a function is performing without having the other functions optimised with the same optimisations -> just optimising the function (and having the rest of the functions optimised different, results in a very big experiment to cover all the possible combinations).
+    #  - So my actual project is just covering the static features and optimisation performance -> just the initial steps to evaluate whether or not the features are useful (hoping that the profiling of single functions doesn't "lie" to me, due to having the whole program optimised with the same optimisations...
+
+    test_statistics="${HOME}/Temp/Automatic_Optimisation_of_Individual_Functions/utility/pilot_experiment_test_statistics.R"
+    Rscript ${test_statistics} ${1} ${2} ${3}
+}
+
+# This function is made for just comparing the optcases that different
+# function compare_the_functions () {
+#     for funname in `cat ${function_names}`; do
+# 	for i in 0 1 2 3; do
+# 	    if [ ${i} -ne 3 ]; then
+# 		new_i=`expr ${i} + 1`
+# 		for j in `seq ${new_i} 3`; do
+# 	            # For this pilot experiment, the last optcase/function/argument should be faster than the first optcase/function/argument
+# 		    compare_functions "program_O${i}_${funname}_raw.txt" "program_O${j}_${funname}_raw.txt" "program_comparison_O${i}_vs_O${j}"
+# 		done
+# 	    fi
+# 	done
+#     done
+# }
+
+# This version of the function also compares the same optcases
+function compare_the_functions () {
+    for funname in `cat ${function_names}`; do
+	for i in 0 1 2 3; do
+	    for j in `seq ${i} 3`; do
+	        # For this pilot experiment, the last optcase/function/argument should be faster than the first optcase/function/argument, but this information is not used.
+		compare_functions "program_O${i}_${funname}_raw.txt" "program_O${j}_${funname}_raw.txt" "program_comparison_${funname}_O${i}_vs_O${j}"
 	    done
 	done
     done
-    
-    rm "my_R_data_table_value_holder.txt"
 }
 
-obtain_function_names ${my_iterations} "fixed_frequency"
+# When doing the wilcox.test comparison it will give a warning about not being able to compute an exact p-value due to 'ties'.
+# !! UNCOMMENTED: for testing latex generator !! #compare_the_functions
 
-generate_R_data_table ${my_iterations} "fixed_frequency"
+# After that : Clean up the script(s) to make it more general/generic (work with multiple projects and possible naming schemes
+# After that : Parse the data and generate presentable data (possible latex tables)
+# Then
+####   Do it for different input data to the projects
+#   Do it for oprofile with different sampling settings
+#   Show the estimated distribution of the sampled/gathered data/measurements
+#   Try different types of data gathering: 20 runs pr. measurement, 20 runs pr. mean (20 times) for normal t-test, as done now (1 run equals 1 sample/measurement).
+#   On multiple projects/programs.
+
+
+#############################################################
+# Simple and quick result parser and latex generator
+#############################################################
+# TODO and WARNING:
+# function_names is listed in pilot_experiment_compilation_and_profiling.sh, but need it here too (atleast for this way of generating the presentation of the results / latex...
+function_names="my_obtained_function_names.txt"
+function do_presentation_of_results () {
+    my_dst="my_latex_data_presentation"
+    latex=${my_dst}/master.tex
+#    rm -r ${my_dst}
+    if [ ! -d ${my_dst} ]; then
+	mkdir ${my_dst}
+    fi
+
+#    cp pilot_experiment_header.tex ${my_dst}/pilot_experiment_header.tex
+
+    # Latex setup
+    #echo "\\input{pilot_experiment_header}" > ${my_dst}/master.tex
+    echo "\\documentclass{article}" > ${latex}
+    echo "\\usepackage{longtable}" >> ${latex}
+    echo "\\begin{document}" >> ${latex}
+    echo "\\section{automotive\\_bitcount}" >> ${latex}
+    # Data for functions
+    for funname in `cat ${function_names}`; do
+	echo "\\subsection{${funname}}" >> ${latex}
+	# Make table with descriptive data
+	echo "\\begin{longtable}{r|l|l}" >> ${latex}
+	echo "\\textbf{Optcase} & \\textbf{Mean} & \\textbf{Standard deviation}" >> ${latex}
+	echo "\\\\" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\endfirsthead" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\textbf{Optcase} & \\textbf{Mean} & \\textbf{Standard deviation}" >> ${latex}
+	echo "\\\\" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\endhead" >> ${latex}
+	echo "\\hline \multicolumn{3}{r}{Continues...}" >> ${latex}
+	echo "\\\\" >> ${latex}
+	echo "\\endfoot" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\caption{Descriptive statistics for function ${funname}.}" >> ${latex}
+	echo "\\endlastfoot" >> ${latex}
+	# The actual data
+	for i in 0 1 2 3; do
+	    echo -n "-O${i}" >> ${latex}
+	    echo -n " & `cat program_O${i}_${funname}_mean.txt`" >> ${latex}
+	    echo " & `cat program_O${i}_${funname}_sd.txt`" >> ${latex}
+	    echo "\\\\" >> ${latex}
+	done
+    	echo "\\end{longtable}" >> ${latex}
+
+	# Table with the p-values for the t-test
+	echo "\\begin{longtable}{c|l|l|l|l}" >> ${latex}
+	echo "\\textbf{ } & \\textbf{-O0} & \\textbf{-O1} & \\textbf{-O2} & \\textbf{-O3}" >> ${latex}
+	echo "\\\\" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\endfirsthead" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\textbf{ } & \\textbf{-O0} & \\textbf{-O1} & \\textbf{-O2} & \\textbf{-O3}" >> ${latex}
+	echo "\\\\" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\endhead" >> ${latex}
+	echo "\\hline \multicolumn{5}{r}{Continues...}" >> ${latex}
+	echo "\\\\" >> ${latex}
+	echo "\\endfoot" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\caption{P-values for a two sided t-test for function ${funname}.}" >> ${latex}
+	echo "\\endlastfoot" >> ${latex}
+	# The actual data
+	for i in 0 1 2 3; do
+	    echo -n "-O${i}" >> ${latex}
+#	    for j in `seq ${i} 3`; do
+	    for j in `seq 0 3`; do
+		if [ ${j} -lt ${i} ]; then
+		    # Or could just print the same p-value found for O{j}_vs_O{i}, as it should be the same.
+		    echo -n " & -" >> ${latex}
+		else
+		    echo -n " & `cat program_comparison_${funname}_O${i}_vs_O${j}_t-test_p-value.txt`" >> ${latex}
+		fi
+	    done
+	    echo "\\\\" >> ${latex}
+	done
+    	echo "\\end{longtable}" >> ${latex}
+
+	# Table with the p-values for the u-test
+	echo "\\begin{longtable}{c|l|l|l|l}" >> ${latex}
+	echo "\\textbf{ } & \\textbf{-O0} & \\textbf{-O1} & \\textbf{-O2} & \\textbf{-O3}" >> ${latex}
+	echo "\\\\" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\endfirsthead" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\textbf{ } & \\textbf{-O0} & \\textbf{-O1} & \\textbf{-O2} & \\textbf{-O3}" >> ${latex}
+	echo "\\\\" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\endhead" >> ${latex}
+	echo "\\hline \multicolumn{5}{r}{Continues...}" >> ${latex}
+	echo "\\\\" >> ${latex}
+	echo "\\endfoot" >> ${latex}
+	echo "\\hline" >> ${latex}
+	echo "\\caption{P-values for a two sided u-test for function ${funname}.}" >> ${latex}
+	echo "\\endlastfoot" >> ${latex}
+	# The actual data
+	for i in 0 1 2 3; do
+	    echo -n "-O${i}" >> ${latex}
+#	    for j in `seq ${i} 3`; do
+	    for j in `seq 0 3`; do
+		if [ ${j} -lt ${i} ]; then
+		    # Or could just print the same p-value found for O{j}_vs_O{i}, as it should be the same.
+		    echo -n " & -" >> ${latex}
+		else
+		    echo -n " & `cat program_comparison_${funname}_O${i}_vs_O${j}_u-test_p-value.txt`" >> ${latex}
+		fi
+	    done
+	    echo "\\\\" >> ${latex}
+	done
+    	echo "\\end{longtable}" >> ${latex}
+	echo "\\clearpage" >> ${latex}
+    done
+    echo "\\end{document}" >> ${latex}
+
+    # Correct the titles that contain underscores
+    #sed -i 's/\\section{[a-zA-Z]*(\_){<regex>/<replacement>/g'
+    # Quick fix
+    sed -i 's/[^\\]_/\\_/g' ${latex}
+}
+
+do_presentation_of_results
 
 ### TODO ###
 # Find out how to analyse the results and do statistics on them, including handling the inaccuracy
