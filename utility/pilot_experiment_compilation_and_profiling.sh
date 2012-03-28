@@ -44,7 +44,7 @@ function setup_oprofile () {
 
 function shutdown_oprofile () {
     sudo opcontrol --shutdown
-    # Deinit can be a bit overkill... atleast considering I'm not --init'ing it in the setup function
+    # --deinit can be a bit overkill... atleast considering I'm not --init'ing it in the setup function
 #    sudo opcontrol --deinit
 }
 
