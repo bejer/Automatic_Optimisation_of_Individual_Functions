@@ -4,7 +4,7 @@
 
 # TODO:
 #  - Should the binaries be compiled with '-g' for debugging information - it is activated with -pg='-p -g', but how about when looking at oprofile?
-#  - Not registering errors with compilations and/or other errors and problems - would be nice to do something when they appear, e.g. notify the user instead of silently keep running (important when doing automatisation - else errors will just go unnoticed)
+#  - Not registering errors with compilations and/or other errors and problems - would be nice to do something when they appear, e.g. notify the user instead of silently keep running (important when doing automation - else errors will just go unnoticed)
 
 # Requires a 'my_program_wrapper.sh' script that takes the arguments "build, build_gprof, cleanup, execute".
 # Assumes that the current directory is the place where the program is located and all the files are at the top level and such.
@@ -12,6 +12,13 @@
 function my_error () {
     echo "My Error: ${1}"
     exit 1
+}
+
+function my_alert () {
+    # Play some sound or beeping to let me know that something went wrong!
+    echo "You need to implement the my_alert functionality to also make some sound/noise! - FIX IT!"
+    echo "My Alert: ${1}"
+    exit 2
 }
 
 ############################################################
@@ -26,8 +33,11 @@ program_name=`cat ${program_name_file}`
 # Program input
 input_set_file="input_set_4_items.txt"
 # Data gathering
-times_per_input_element=5
+# times_per_input_element is changed from 5 to 2, because the overall execution time had to be reduced in order of being able to actually run and profile the binaries within a "short" time period of 2-4 days.
+times_per_input_element=2
 number_of_samples=20
+# Validation
+valid_output_file="valid_output_for_input_set_4_items_${times_per_input_element}_runs_each.txt"
 
 ############################################################
 # Functions related to compilation
@@ -81,7 +91,7 @@ function setup_function_optcase () {
 function generate_function_specific_binaries () {
     # This function contains quite some hardcoded information - such as wanted/used optcases and their numbers
 
-    # Adding global flags - the flags has to be valid filename segments as they are just added between a pair of '_'
+    # Adding global flags - the flags has to be valid file name segments as they are just added between a pair of '_'
     for global_flags in "-O0" "-O1" "-O2" "-O3"; do
 
     for rest_optcase in `seq 1 4`; do
@@ -97,14 +107,14 @@ function generate_function_specific_binaries () {
 	    fi
 	    echo "DEBUG: going to generate binaries for global_flags=${global_flags} rest_optcase=${rest_optcase} function_optcase=${function_optcase}"
 	    for function_name in `cat ${obtained_function_names_file}`; do
-		# This step also resets the previous function specific passes (although doing more work than necesarry for the ease of writing this script)
+		# This step also resets the previous function specific passes (although doing more work than necessary for the ease of writing this script)
 		setup_rest_optcases ${rest_optcase}
 		setup_function_optcase "${function_name}" ${function_optcase}
-		# Compile step! Using '_test' editions to include the global flags settings (does it matter if -O{1|2|3} is used?
+
 		echo "DEBUG: compiling with substitute passes gprof: rest_optcase: ${rest_optcase} function_optcase: ${function_optcase} for function ${function_name}..."
-		compile_with_substitute_passes_gprof_test "${program_name}_global_flags_${global_flags}_rest_optcase_${rest_optcase}_function_optcase_${function_optcase}_function_${function_name}_gprof_yes.out" "${global_flags}"
+		compile_with_substitute_passes_gprof "${program_name}_global_flags_${global_flags}_rest_optcase_${rest_optcase}_function_optcase_${function_optcase}_function_${function_name}_gprof_yes.out" "${global_flags}"
 		echo "DEBUG: compiling with substitute passes: rest_optcase: ${rest_optcase} function_optcase: ${function_optcase} for function ${function_name}..."
-		compile_with_substitute_passes_test "${program_name}_global_flags_${global_flags}_rest_optcase_${rest_optcase}_function_optcase_${function_optcase}_function_${function_name}_gprof_no.out" "${global_flags}"
+		compile_with_substitute_passes "${program_name}_global_flags_${global_flags}_rest_optcase_${rest_optcase}_function_optcase_${function_optcase}_function_${function_name}_gprof_no.out" "${global_flags}"
 	    done
 	done
     done
@@ -153,6 +163,15 @@ function run_and_gprof_profile () {
     mv gmon.sum ${2}
 }
 
+# $1=executable_name
+function run_and_oprofile_profile () {
+    # This function requires superuser privileges (for using oprofile)
+    # Using 'sudo' to get root privileges. When automating the task it can be advantageous to not require a password for sudo'ing the command 'opcontrol' - usually set within /etc/sudoers (edited through visudo).
+    echo "----- Running and profiling the program - oprofile -----"
+    # TODO: add oprofile profiling with testing whether or not such a session already exists and such (if possible to do in a sensible way without requiring to much root access...
+    echo "- not implemented yet though -"
+}
+
 # $1=number_of_samples
 function run_and_profile_function_specific_optimised_binaries () {
     echo "----- Running and profiling the function specific optimised binaries -----"
@@ -169,17 +188,6 @@ function run_and_profile_function_specific_optimised_binaries () {
 	done
     done
 }
-
-
-# $1=executable_name
-function run_and_oprofile_profile () {
-    # This function requires superuser priviledges (for using oprofile)
-    # Using 'sudo' to get root priviledges. When automating the task it can be advantageous to not require a password for sudo'ing the command 'opcontrol' - usually set within /etc/sudoers (editted through visudo).
-    echo "----- Running and profiling the program - oprofile -----"
-    # TODO: add oprofile profiling with testing whether or not such a session already exists and such (if possible to do in a sensible way without requiring to much root access...
-    echo "- not implemented yet though -"
-}
-
 
 ############################################################
 # Compilation step
@@ -200,8 +208,46 @@ function do_compile () {
     obtain_function_names_from_gprof ${executable_name} ${gmon_sum_name} ${obtained_function_names_file}
 
 
+# TODO:
+# Here to manually affect the function list!
+# Make a copy of this particular function and call it something similar with and extra argument containing the function name?
+
+
     # The "actual" compilation
     generate_function_specific_binaries
+}
+
+############################################################
+# Validation step - make sure the generated binaries produce correct results
+############################################################
+function do_validate () {
+    tmp_validation_output_file="tmp_validation_output.txt"
+    malfunctioned_binaries_file="malfunctioned_binaries.txt"
+    # Remove the file containing binary names for malfunctioned binaries
+    [ -f ${malfunctioned_binaries_file} ] && rm ${malfunctioned_binaries_file}
+
+    # Test to make sure there are 4 elements (inputs) in the file
+    [ -f ${input_set_file} ] || my_error "There is no input file `pwd`/${input_set_file} - fix the problem."
+    input_elements=`wc -l ${input_set_file} | awk -F ' ' '{ print $1 ; }'`
+    [ ${input_elements} -eq 4 ] || my_error "The specified input file `pwd`/${input_set_file} does not contain 4 elements"
+    for binary in `ls ${program_name}_rest_optcase_*_gprof_*.out`; do
+	[ -f ${tmp_validation_output_file} ] && rm ${tmp_validation_output_file}
+	for i in `seq 1 ${input_elements}`; do
+	    input_line=`awk -F ' ' "NR==${i} { print ; }" ${input_set_file}`
+	    for j in `seq 1 ${times_per_input_element}`; do
+		./${binary} "${input_line}" >> ${tmp_validation_output_file}
+	    done
+	done
+	# Compare using diff - alert is something is wrong and record the binary that caused the accident -> maybe just output the binary name to a file and keep going - so it is recording all the binaries that did wrong
+	diff ${tmp_validation_output_file} ${valid_output_file} || echo "${binary}" >> ${malfunctioned_binaries_file}
+    done
+
+    # Check if there are malfunctioned binaries
+    if [ -f ${malfunctioned_binaries_file} ]; then
+	my_alert "One or more binaries didn't produce the correct results - see ${malfunctioned_binaries_file} for more information on which binaries caused this alert."
+    fi
+
+
 }
 
 ############################################################
@@ -217,7 +263,7 @@ function do_profile () {
 # $1=number_of_samples
 # Although the knowledge of number of samples isn't really that necessary
 function generate_raw_measurement_files () {
-    # It would be nice to get the "base name" and use the number_of_samples to get sample 1 first and up to 20 (althouhg maybe not that important...)
+    # It would be nice to get the "base name" and use the number_of_samples to get sample 1 first and up to 20 (although maybe not that important...)
 
 # Produce raw measurement files - like in the pilot experiment scripts
 }
@@ -227,7 +273,7 @@ function generate_raw_measurement_files () {
 # Main part - controlling what step to do
 ############################################################
 function show_help () {
-    echo "This script supports the following modes {compile|profile|process_data}."
+    echo "This script supports the following modes {compile|validate|profile|process_data}."
     exit 1
 }
 
@@ -235,6 +281,9 @@ function show_help () {
 case "${1}" in
     "compile")
 	do_compile
+	;;
+    "validate")
+	do_validate
 	;;
     "profile")
 	do_profile
