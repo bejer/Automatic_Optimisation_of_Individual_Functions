@@ -50,8 +50,7 @@ function compile_with_save_executed_passes_gprof () {
     (
 	. ${HOME}/Temp/ctuning/ctuning-cc-2.5-gcc-4.4.4-ici-2.05-milepost-2.1_with_ccc-framework/ctuning-cc-2.5-gcc-4.4.4-ici-2.05-milepost-2.1/gcc_ici_environment_save_passes.sh
 	./my_program_wrapper.sh cleanup
-#	./my_program_wrapper.sh build ${1}
-	./my_program_wrapper.sh build_gprof ${1}
+	./my_program_wrapper.sh build_gprof ${1} ""
     )
 }
 
@@ -172,21 +171,24 @@ function run_and_oprofile_profile () {
     echo "- not implemented yet though -"
 }
 
-# $1=number_of_samples
+# $1=number_of_samples, $2=global_flag, $3=rest_optcase, $4=function_optcase, $5=function_name, $6=gprof_yes_or_no
 function run_and_profile_function_specific_optimised_binaries () {
     echo "----- Running and profiling the function specific optimised binaries -----"
     # I know the naming scheme and can just get a list of the binaries and the name for gmon.sum can contain the binary name that produced the profiling information.
-    for binary in `ls ${program_name}_rest_optcase_*_gprof_yes.out`; do
-	for i in `seq 1 ${1}`; do
-	    run_and_gprof_profile ${binary} "${binary}_gmon_${i}.sum"
+    if [ "${6}" == "yes" ]; then
+	for binary in `ls ${program_name}_global_flags_${2}_rest_optcase_${3}_function_optcase_${4}_function_${5}_gprof_yes.out`; do
+	    for i in `seq 1 ${1}`; do
+		run_and_gprof_profile ${binary} "${binary}_gmon_${i}.sum"
+	    done
 	done
-    done
-
-    for binary in `ls ${program_name}_rest_optcase_*_gprof_no.out`; do
-	for i in `seq 1 ${1}`; do
-	    run_and_oprofile_profile ${binary} "args?"
+    else
+	[ "${6}" == "no" ] || my_error "The gprof/profiling argument is neither 'yes' or 'no'..."
+	for binary in `ls ${program_name}_global_flags_${2}_rest_optcase_${3}_function_optcase_${4}_function_${5}_gprof_no.out`; do
+	    for i in `seq 1 ${1}`; do
+		run_and_oprofile_profile ${binary} "args?"
+	    done
 	done
-    done
+    fi
 }
 
 ############################################################
@@ -220,7 +222,9 @@ function do_compile () {
 ############################################################
 # Validation step - make sure the generated binaries produce correct results
 ############################################################
+# $1=global_flag, $2=rest_optcase, $3=function_optcase, $4=function_name, $5=gprof_yes_or_no
 function do_validate () {
+    [ -f ${valid_output_file} ] || my_error "There is no file with valid output, ${valid_output_file} - fix the problem."
     tmp_validation_output_file="tmp_validation_output.txt"
     malfunctioned_binaries_file="malfunctioned_binaries.txt"
     # Remove the file containing binary names for malfunctioned binaries
@@ -230,7 +234,7 @@ function do_validate () {
     [ -f ${input_set_file} ] || my_error "There is no input file `pwd`/${input_set_file} - fix the problem."
     input_elements=`wc -l ${input_set_file} | awk -F ' ' '{ print $1 ; }'`
     [ ${input_elements} -eq 4 ] || my_error "The specified input file `pwd`/${input_set_file} does not contain 4 elements"
-    for binary in `ls ${program_name}_rest_optcase_*_gprof_*.out`; do
+    for binary in `ls ${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}.out`; do
 	[ -f ${tmp_validation_output_file} ] && rm ${tmp_validation_output_file}
 	for i in `seq 1 ${input_elements}`; do
 	    input_line=`awk -F ' ' "NR==${i} { print ; }" ${input_set_file}`
@@ -242,19 +246,25 @@ function do_validate () {
 	diff ${tmp_validation_output_file} ${valid_output_file} || echo "${binary}" >> ${malfunctioned_binaries_file}
     done
 
+    # A bit of clean up
+    [ -f ${tmp_validation_output_file} ] && rm ${tmp_validation_output_file}
+    # If running with gprof then remove the generated gmon.out file
+    if [ "$5" == "yes" ]; then
+	[ -f gmon.out ] && rm gmon.out
+    fi
+
     # Check if there are malfunctioned binaries
     if [ -f ${malfunctioned_binaries_file} ]; then
 	my_alert "One or more binaries didn't produce the correct results - see ${malfunctioned_binaries_file} for more information on which binaries caused this alert."
     fi
-
-
 }
 
 ############################################################
 # Profiling step
 ############################################################
+# $1=global_flag, $2=rest_optcase, $3=function_optcase, $4=function_name, $5=gprof_yes_or_no
 function do_profile () {
-    run_and_profile_function_specific_optimised_binaries ${number_of_samples}
+    run_and_profile_function_specific_optimised_binaries ${number_of_samples} "${1}" "${2}" "${3}" "${4}" "${5}"
 }
 
 ############################################################
@@ -265,7 +275,8 @@ function do_profile () {
 function generate_raw_measurement_files () {
     # It would be nice to get the "base name" and use the number_of_samples to get sample 1 first and up to 20 (although maybe not that important...)
 
-# Produce raw measurement files - like in the pilot experiment scripts
+    # Produce raw measurement files - like in the pilot experiment scripts
+    echo "Not implemented yet!"
 }
 
 
@@ -274,6 +285,8 @@ function generate_raw_measurement_files () {
 ############################################################
 function show_help () {
     echo "This script supports the following modes {compile|validate|profile|process_data}."
+    echo "The steps {validate|profile|process_data} takes the following arguments:"
+    echo "<global_flags> <rest_optcase> <function_optcase> <function_name> <gprof_no_or_yes>"
     exit 1
 }
 
@@ -283,12 +296,28 @@ case "${1}" in
 	do_compile
 	;;
     "validate")
-	do_validate
+	if [ ! $# -eq 6 ]; then
+	    echo "argument numbers: $#"
+	    echo "argument 2: ${2}"
+	    echo "argument 3: ${3}"
+	    echo "argument 4: ${4}"
+	    echo "argument 5: ${5}"
+	    echo "argument 6: ${6}"
+
+	    echo "Error: validate needs 6 arguments"
+	    show_help
+	fi
+	do_validate "${2}" "${3}" "${4}" "${5}" "${6}"
 	;;
     "profile")
-	do_profile
+	if [ ! $# -eq 6 ]; then
+	    echo "Error: profile needs 6 arguments"
+	    show_help
+	fi
+	do_profile "${2}" "${3}" "${4}" "${5}" "${6}"
 	;;
     "process_data")
+	echo "Not implemented yet!"
 	do_process_data
 	;;
     *)
