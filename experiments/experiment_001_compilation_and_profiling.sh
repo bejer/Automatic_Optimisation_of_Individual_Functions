@@ -136,7 +136,7 @@ function obtain_function_names_from_gprof () {
 
 # $1=executable_name, $2=name_for_gmon.sum
 function run_and_gprof_profile () {
-    echo "----- Running and profiling the program - gprof -----"
+#    echo "----- Running and profiling the program - gprof -----"
     # Test to make sure there are 4 elements (inputs) in the file
     [ -f ${input_set_file} ] || my_error "There is no input file `pwd`/${input_set_file} - fix the problem."
     input_elements=`wc -l ${input_set_file} | awk -F ' ' '{ print $1 ; }'`
@@ -163,12 +163,49 @@ function run_and_gprof_profile () {
 }
 
 # $1=executable_name
+function setup_oprofile () {
+    # Make nmi_watchdog not use the counter resource. Using sudo, so to avoid having to manually type in the password, set up sudo to automatically allow the tee command on that particular file.
+    echo 0 | sudo tee /proc/sys/kernel/nmi_watchdog
+    # Reset session
+    sudo opcontrol --reset
+
+    # Start oprofiling
+    sudo opcontrol --no-vmlinux --image=${1}
+    sudo opcontrol --start-daemon # To avoid profiling the daemon startup (not that necessary here)
+}
+
+function shutdown_oprofile () {
+    sudo opcontrol --shutdown
+}
+
+# $1=executable_name, $2=name_for_oprofile_results
 function run_and_oprofile_profile () {
     # This function requires superuser privileges (for using oprofile)
     # Using 'sudo' to get root privileges. When automating the task it can be advantageous to not require a password for sudo'ing the command 'opcontrol' - usually set within /etc/sudoers (edited through visudo).
-    echo "----- Running and profiling the program - oprofile -----"
-    # TODO: add oprofile profiling with testing whether or not such a session already exists and such (if possible to do in a sensible way without requiring to much root access...
-    echo "- not implemented yet though -"
+#    echo "----- Running and profiling the program - oprofile -----"
+    # If the oprofile session already exists it simply throws away the new measurements.
+    # So do manual removal of the sessions - have to be root/sudo to do it... not sure how reliable /etc/sudoers is with rm (-r) commands...
+
+    # Test to make sure there are 4 elements (inputs) in the file
+    [ -f ${input_set_file} ] || my_error "There is no input file `pwd`/${input_set_file} - fix the problem."
+    input_elements=`wc -l ${input_set_file} | awk -F ' ' '{ print $1 ; }'`
+    [ ${input_elements} -eq 4 ] || my_error "The specified input file `pwd`/${input_set_file} does not contain 4 elements"
+    # Prepare oprofile
+    setup_oprofile "${1}"
+    # Adding a sleep just to be sure the daemon setup is done and settled or something like that.
+    sleep 1
+    sudo opcontrol --start
+
+    for i in `seq 1 ${input_elements}`; do
+	input_line=`awk -F ' ' "NR==${i} { print ; }" ${input_set_file}`
+	for j in `seq 1 ${times_per_input_element}`; do
+	    ./${1} "${input_line}" > /dev/null
+	done
+    done
+
+    # Save the accumulated oprofile information
+    sudo opcontrol --save="${2}"
+    shutdown_oprofile
 }
 
 # $1=number_of_samples, $2=global_flag, $3=rest_optcase, $4=function_optcase, $5=function_name, $6=gprof_yes_or_no
@@ -185,7 +222,7 @@ function run_and_profile_function_specific_optimised_binaries () {
 	[ "${6}" == "no" ] || my_error "The gprof/profiling argument is neither 'yes' or 'no'..."
 	for binary in `ls ${program_name}_global_flags_${2}_rest_optcase_${3}_function_optcase_${4}_function_${5}_gprof_no.out`; do
 	    for i in `seq 1 ${1}`; do
-		run_and_oprofile_profile ${binary} "args?"
+		run_and_oprofile_profile ${binary} "${binary}_oprofile_${i}"
 	    done
 	done
     fi
