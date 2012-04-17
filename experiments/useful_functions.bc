@@ -1,0 +1,23 @@
+/* This are some useful functions for bc */
+
+/* Absolute value / numeric value */
+define abs(x) {
+       if (x < 0) return (-x)
+       return (x)
+}
+
+/* Round (up or down) to integer */
+define round_to_integer(x) {
+       /* Save the value of scale */
+       auto old_scale
+       old_scale = scale
+       /* Add 0.5 to make a proper rounding instead of just flooring/truncating */
+       x += 0.5
+       /* Set scale to 0, to remove any decimals */
+       scale = 0
+       /* Divide by 1 to truncate to integer */
+       x /= 1
+       /* Restore the old value for scale */
+       scale = old_scale
+       return (x)
+}

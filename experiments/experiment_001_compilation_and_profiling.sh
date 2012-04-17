@@ -39,6 +39,9 @@ number_of_samples=20
 # Validation
 valid_output_file="valid_output_for_input_set_4_items_${times_per_input_element}_runs_each.txt"
 
+# Location for additional functions for 'bc'
+bc_functions="${HOME}/Temp/Automatic_Optimisation_of_Individual_Functions/experiments/useful_functions.bc"
+
 ############################################################
 # Functions related to compilation
 ############################################################
@@ -203,6 +206,8 @@ function run_and_oprofile_profile () {
 	done
     done
 
+    # Trying to force a dump, to see if that will give more similar output/measurements
+    sudo opcontrol --dump
     # Save the accumulated oprofile information
     sudo opcontrol --save="${2}"
     shutdown_oprofile
@@ -307,23 +312,81 @@ function do_profile () {
 ############################################################
 # Data processing step
 ############################################################
-# $1=number_of_samples
-# Although the knowledge of number of samples isn't really that necessary
-function generate_raw_measurement_files () {
+# $1=global_flag, $2=rest_optcase, $3=function_optcase, $4=function_name, $5=gprof_yes_or_no, $6=path_to_place_raw_measurement_files
+#function generate_raw_measurement_files () {
+function do_process_data () {
     # It would be nice to get the "base name" and use the number_of_samples to get sample 1 first and up to 20 (although maybe not that important...)
 
     # Produce raw measurement files - like in the pilot experiment scripts
-    echo "Not implemented yet!"
+#    echo "Not fully implemented yet!"
+#    exit 1
+
+    [ -d ${6} ] || my_error "The supplied path, to place raw measurement files in, does not exist."
+
+    [ -f ${6}/${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}_raw_samples_${number_of_samples}.txt ] && mv ${6}/${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}_raw_samples_${number_of_samples}.txt ${6}/${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}_raw_samples_${number_of_samples}.txt.bac
+
+    # DISCLAIMER: This version requires to know the function names, as they are supposed to be given as arguments to this function! - maybe the automating of function names should be done in the script that is invoking this script - instead of placing the logic to do so here.
+    
+    if [ "${5}" == "yes" ]; then
+	# Gprof version
+	for sample in `seq 1 ${number_of_samples}`; do
+	    gprof -bp ${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}.out ${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}.out_gmon_${sample}.sum | awk -F ' ' "\$7 == \"${4}\" { print \$3; }" >> ${6}/${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}_raw_samples_${number_of_samples}.txt
+	done
+#    ${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}.out
+
+    else
+	# Oprofile version
+	[ "${5}" == "no" ] || my_error "Apparently the data to be processed are neither gprof or non-gprof data."
+	for sample in `seq 1 ${number_of_samples}`; do
+	    # Using a session dir different from the default one. (This is a work around, due to 'too many files - no space left on device' error.)
+	    opreport --session-dir=${HOME}/Temp/oprofile_sessions/${program_name} --symbols session:${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}.out_oprofile_${sample} | awk -F ' ' "\$3 == \"${4}\" { print \$1; }" >> ${6}/${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}_raw_samples_${number_of_samples}.txt
+	done
+    fi
+
+    # Given that everything went well, delete the backup (old file)
+    [ -f ${6}/${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}_raw_samples_${number_of_samples}.txt.bac ] && rm ${6}/${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}_raw_samples_${number_of_samples}.txt.bac
 }
 
+############################################################
+# Testing for outliers
+############################################################
+# $1=global_flag, $2=rest_optcase, $3=function_optcase, $4=function_name, $5=gprof_yes_or_no, $6=path_to_find_the_raw_measurement_files, $7=threshold_for_deviation=integer, $8=place_to_put_measurements_with_outlier
+function do_test_for_outlier () {
+    [ -f ${bc_functions} ] || my_error "The file with useful bc functions '${bc_functions}' is missing - fix it."
+
+    [ -d ${6} ] || my_error "The supplied path, to where the raw measurement files can be found, does not exist."
+    pushd .
+    cd ${6}
+
+    for measurement_file in `ls ${program_name}_global_flags_${1}_rest_optcase_${2}_function_optcase_${3}_function_${4}_gprof_${5}_raw_samples_${number_of_samples}.txt`; do
+	median_point=`expr ${number_of_samples} / 2 + 1`
+	pseudo_median=`cat ${measurement_file} | sort -g | awk -F ' ' "NR == ${median_point} { print ; }"`
+	# Using absolute value for max_deviation (easier comparisons)
+	max_deviation=0
+	for measurement in `cat ${measurement_file}`; do
+	    # Calculate the %-wise deviation - as an absolute value
+	    deviation=`echo "scale=10; dev = ((${measurement} - ${pseudo_median}) / ${pseudo_median}) * 100; round_to_integer(abs(dev))" | bc ${bc_functions}`
+	    [ ${deviation} -gt ${max_deviation} ] && max_deviation=${deviation}
+	done
+	if [ ${max_deviation} -ge ${7} ]; then
+	    echo "${max_deviation}:${measurement_file}" >> ${8}
+	fi
+    done
+
+    popd
+}
 
 ############################################################
 # Main part - controlling what step to do
 ############################################################
 function show_help () {
-    echo "This script supports the following modes {compile|validate|profile|process_data}."
-    echo "The steps {validate|profile|process_data} takes the following arguments:"
+    echo "This script supports the following modes {compile|validate|profile|process_data|test_for_outlier}."
+    echo "The steps {validate|profile} takes the following arguments:"
     echo "<global_flags> <rest_optcase> <function_optcase> <function_name> <gprof_no_or_yes>"
+    echo "The step {process_data} takes the following arguments:"
+    echo "<global_flags> <rest_optcase> <function_optcase> <function_name> <gprof_no_or_yes> <path_to_place_processed_data_in>"
+    echo "The step {test_for_outlier} takes the following arguments:"
+    echo "<global_flags> <rest_optcase> <function_optcase> <function_name> <gprof_no_or_yes> <path_to_find_the_raw_measurement_files> <threshold_for_deviation - needs to be an integer> <place_to_put_measurements_with_outlier - should be an absolute path including filename>"
     exit 1
 }
 
@@ -354,8 +417,18 @@ case "${1}" in
 	do_profile "${2}" "${3}" "${4}" "${5}" "${6}"
 	;;
     "process_data")
-	echo "Not implemented yet!"
-	do_process_data
+	if [ ! $# -eq 7 ]; then
+	    echo "Error: process_data needs 7 arguments"
+	    show_help
+	fi
+	do_process_data "${2}" "${3}" "${4}" "${5}" "${6}" "${7}"
+	;;
+    "test_for_outlier")
+	if [ ! $# -eq 9 ]; then
+	    echo "Error: process_data needs 9 arguments"
+	    show_help
+	fi
+	do_test_for_outlier "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${9}"
 	;;
     *)
 	show_help
