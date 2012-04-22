@@ -165,6 +165,35 @@ function profile () {
     echo "Warning: Manually setting up this function/profiling, as that step is not fully automated yet! - make sure it is correct!"
     read -p "Press enter to continue..."
 
+
+############################################################ Doing more samples
+     my_function_names="bit_shifter bit_count ntbl_bitcnt main1 bitcount AR_btbl_bitcount ntbl_bitcount BW_btbl_bitcount"
+     for fn in ${my_function_names}; do
+	for gf in ${global_flags}; do
+	    for ro in ${rest_optcases}; do
+		for fo in ${function_optcases}; do
+		    for gp in ${gprof_possibilities}; do
+			if [ ${gf} == "-O0" ]; then
+			    if [ ${ro} -gt 1 ] || [ ${fo} -gt 1 ]; then
+				# Skip this, as there are no valid binaries for these combinations
+				continue
+			    fi
+			fi
+			# Keep track of the state
+			cp ${state_file} ${old_state_file}
+			echo "-------"
+			echo -e "gf:${gf}\nro:${ro}\nfo:${fo}\nfn:${fn}\ngp:${gp}" | tee ${state_file}
+			echo "-------"
+
+			${experiment_work_script} profile_more_samples "${gf}" "${ro}" "${fo}" "${fn}" "${gp}"
+		    done
+		done
+	    done
+	done
+    done
+############################################################ End of: Doing more samples
+
+
 # ####################
 # # Updated: Starting from the <?> function now!
 # ####################
@@ -213,6 +242,10 @@ function profile () {
 }
 
 function process_data () {
+    echo "This functiontinality needs to be adjusted when doing 30 samples! - make sure to only process the functions that have had 30 samples collected!"
+    echo "Maybe even place the data in a new directory - or make a tarball of the previous processed data and empty the directory!"
+    echo "Once this is fixed, remove this text and early exit"
+    exit 1
 #########
 # Data processing
 #########

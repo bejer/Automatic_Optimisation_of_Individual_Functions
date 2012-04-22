@@ -232,6 +232,29 @@ function run_and_profile_function_specific_optimised_binaries () {
 	done
     fi
 }
+ 
+########## WORKAROUND: getting more samples ##########
+# $1=number_of_samples, $2=global_flag, $3=rest_optcase, $4=function_optcase, $5=function_name, $6=gprof_yes_or_no
+function run_and_profile_function_specific_optimised_binaries_more_samples () {
+    echo "----- Running and profiling the function specific optimised binaries -----"
+    # I know the naming scheme and can just get a list of the binaries and the name for gmon.sum can contain the binary name that produced the profiling information.
+    if [ "${6}" == "yes" ]; then
+	for binary in `ls ${program_name}_global_flags_${2}_rest_optcase_${3}_function_optcase_${4}_function_${5}_gprof_yes.out`; do
+	    for i in `seq 21 ${1}`; do
+		run_and_gprof_profile ${binary} "${binary}_gmon_${i}.sum"
+	    done
+	done
+    else
+	[ "${6}" == "no" ] || my_error "The gprof/profiling argument is neither 'yes' or 'no'..."
+	for binary in `ls ${program_name}_global_flags_${2}_rest_optcase_${3}_function_optcase_${4}_function_${5}_gprof_no.out`; do
+	    for i in `seq 21 ${1}`; do
+		run_and_oprofile_profile ${binary} "${binary}_oprofile_${i}"
+	    done
+	done
+    fi
+}
+########## END OF WORKAROUND: getting more samples ##########
+ 
 
 ############################################################
 # Compilation step
@@ -308,6 +331,13 @@ function do_validate () {
 function do_profile () {
     run_and_profile_function_specific_optimised_binaries ${number_of_samples} "${1}" "${2}" "${3}" "${4}" "${5}"
 }
+
+########## WORKAROUND: getting more samples ##########
+# $1=global_flag, $2=rest_optcase, $3=function_optcase, $4=function_name, $5=gprof_yes_or_no
+function do_profile_more_samples () {
+    run_and_profile_function_specific_optimised_binaries_more_samples ${number_of_samples} "${1}" "${2}" "${3}" "${4}" "${5}"
+}
+########## END OF WORKAROUND: getting more samples ##########
 
 ############################################################
 # Data processing step
@@ -416,6 +446,15 @@ case "${1}" in
 	fi
 	do_profile "${2}" "${3}" "${4}" "${5}" "${6}"
 	;;
+########## WORKAROUND: getting more samples ##########
+    "profile_more_samples")
+	if [ ! $# -eq 6 ]; then
+	    echo "Error: profile_more_samples needs 6 arguments"
+	    show_help
+	fi
+	do_profile_more_samples "${2}" "${3}" "${4}" "${5}" "${6}"
+	;;
+########## END OF WORKAROUND: getting more samples ##########
     "process_data")
 	if [ ! $# -eq 7 ]; then
 	    echo "Error: process_data needs 7 arguments"
