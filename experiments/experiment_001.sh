@@ -285,7 +285,7 @@ function test_for_outliers () {
 # Test for outlier
 ###########
 #    echo "Testing for outliers..."
-    deviation_threshold="50"
+    deviation_threshold="0"
     path_for_processed_data="`pwd`/processed_data_001"
     path_to_outlier_info="`pwd`/outlier_info_001.txt"
     function_names="bit_shifter bit_count ntbl_bitcnt main1 bitcount AR_btbl_bitcount ntbl_bitcount BW_btbl_bitcount"
