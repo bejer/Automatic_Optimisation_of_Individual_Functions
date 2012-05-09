@@ -40,6 +40,7 @@ read -p "Warning (part of quick work around): the chosen subrun is '${subrun}', 
 # Make directory if it doesn't exists - or make a backup of the directory [ No need for the else part as the mkdir cmd could be placed after the if, but it gives a better overview in case the if test is altered and not getting some unwanted effects ]
 if [ -d ${output_dir} ]; then
     read -p "The directory '${output_dir}' already exists - press enter to make a backup and continue..."
+    [ -d ${output_dir}.bac ] && rm -r ${output_dir}.bac
     mv ${output_dir} ${output_dir}.bac
     mkdir ${output_dir}
 else
@@ -61,27 +62,35 @@ for file in `ls ${path_for_analysis_files}/analysis_statistics_*.txt`; do
 	"anova_summary_all")
 	    # Just convert to table ready data, not caring for the table boiler plate and detailed layout
 	    # Even ignore first line as that header should/could be defined another place - depending on how the table boiler plate is - different table environments require different setups of the header data... e.g. longtable vs. tabular
-	    awk -F ' ' 'NR > 1 && NR < 9 && $6 != "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6"\\\\"; } NR > 1 && NR < 9 && $6 == "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6" "$7"\\\\"; } $1 == "Residuals" { print $1" & "$2" & "$3" & "$4" &  & \\\\"; }' ${file} > ${output_file}
+	    # The first 'sed-manipulation' is a work around to handle the case where the 6th item is '<2e-16'
+	    cat ${file} | sed 's/<\(\([0-9e.-]\+\)\)/< \1/' | awk -F ' ' 'NR > 1 && NR < 9 && $6 != "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6"\\\\"; } NR > 1 && NR < 9 && $6 == "<" { print $1" & "$2" & "$3" & "$4" & "$5" & $<$ "$7"\\\\"; } $1 == "Residuals" { print $1" & "$2" & "$3" & "$4" &  & \\\\"; }' > ${output_file}
+#	    awk -F ' ' 'NR > 1 && NR < 9 && $6 != "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6"\\\\"; } NR > 1 && NR < 9 && $6 == "<" { print $1" & "$2" & "$3" & "$4" & "$5" & $<$ "$7"\\\\"; } $1 == "Residuals" { print $1" & "$2" & "$3" & "$4" &  & \\\\"; }' ${file} > ${output_file}
 	    ;;
 	"anova_summary_gf_all")
 	    # Using sed to convert '<2e-16' to '< 2e-16' as it outputted from the anova_summary_all data files
-	    cat ${file} | sed 's/\(\(.\)\+\)<\([0-9e\-]\+\)\(\(.\)*\)/\1 < \3 \4/' | awk -F ' ' 'NR > 1 && NR < 3 && $6 != "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6"\\\\"; } NR > 1 && NR < 3 && $6 == "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6" "$7"\\\\"; } $1 == "Residuals" { print $1" & "$2" & "$3" & "$4" &  & \\\\"; }' > ${output_file}
+	    cat ${file} | sed 's/\(\(.\)\+\)<\([0-9e\-]\+\)\(\(.\)*\)/\1 < \3 \4/' | awk -F ' ' 'NR > 1 && NR < 3 && $6 != "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6"\\\\"; } NR > 1 && NR < 3 && $6 == "<" { print $1" & "$2" & "$3" & "$4" & "$5" & $<$ "$7"\\\\"; } $1 == "Residuals" { print $1" & "$2" & "$3" & "$4" &  & \\\\"; }' > ${output_file}
 	    ;;
 	"anova_summary_gf_selected")
 	    # The same convert cmd as "anova_summary_gf_all"
-	    cat ${file} | sed 's/\(\(.\)\+\)<\([0-9e\-]\+\)\(\(.\)*\)/\1 < \3 \4/' | awk -F ' ' 'NR > 1 && NR < 3 && $6 != "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6"\\\\"; } NR > 1 && NR < 3 && $6 == "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6" "$7"\\\\"; } $1 == "Residuals" { print $1" & "$2" & "$3" & "$4" &  & \\\\"; }' > ${output_file}
+	    cat ${file} | sed 's/\(\(.\)\+\)<\([0-9e\-]\+\)\(\(.\)*\)/\1 < \3 \4/' | awk -F ' ' 'NR > 1 && NR < 3 && $6 != "<" { print $1" & "$2" & "$3" & "$4" & "$5" & "$6"\\\\"; } NR > 1 && NR < 3 && $6 == "<" { print $1" & "$2" & "$3" & "$4" & "$5" & $<$ "$7"\\\\"; } $1 == "Residuals" { print $1" & "$2" & "$3" & "$4" &  & \\\\"; }' > ${output_file}
 	    ;;
 	"bartlett_anova_all")
 	    # Just placing the values in a tabular format
-	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' > ${output_file}
+#	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' | sed 's/, p-value < \([0-9\.e\-]\+\)/ \& $<$ \1\\\\/' > ${output_file}
+	    echo -n "ANOVA\\_all & " > ${output_file}
+	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' | sed 's/, p-value < \([0-9\.e\-]\+\)/ \& $<$ \1\\\\/' >> ${output_file}
 	    ;;
 	"bartlett_gf_all")
 	    # Same as for "bartlett_anova_all"
-	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' > ${output_file}
+#	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' | sed 's/, p-value < \([0-9\.e\-]\+\)/ \& $<$ \1\\\\/' > ${output_file}
+	    echo -n "GF\\_all & " > ${output_file}
+	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' | sed 's/, p-value < \([0-9\.e\-]\+\)/ \& $<$ \1\\\\/' >> ${output_file}
 	    ;;
 	"bartlett_gf_selected")
 	    # Same as for "bartlett_anova_all"
-	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' > ${output_file}
+#	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' | sed 's/, p-value < \([0-9\.e\-]\+\)/ \& $<$ \1\\\\/' > ${output_file}
+	    echo -n "GF\\_selected & " > ${output_file}
+	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' | sed 's/, p-value < \([0-9\.e\-]\+\)/ \& $<$ \1\\\\/' >> ${output_file}
 	    ;;
 	"means_gf_all")
 	    awk -F ' ' 'NR != 1 { print $2" & "$3"\\\\"; }' ${file} > ${output_file}
