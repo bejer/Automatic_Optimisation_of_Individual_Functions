@@ -27,12 +27,12 @@ program_name="`cat program_name.txt`"
 
 
 # Directory to hold all the generated data
-path_to_latex="${HOME}/Temp/master_thesis_latex/analysis_results"
+path_to_latex="${PATH_TO_MASTER_THESIS_LATEX}/analysis_results"
 [ -d ${path_to_latex} ] || my_error "The path to place the latex output in could not be found '${path_to_latex}'."
 
 
 # 'subrun' is a quick work around for having multiple runs for each program (e.g. one before and after improved data quality) - has to be manually changed in this source file... i.e. quick work around.
-subrun="/01"
+subrun="/02"
 output_dir="${path_to_latex}/${program_name}${subrun}"
 
 read -p "Warning (part of quick work around): the chosen subrun is '${subrun}', if this is correct press enter or abort now and change this script '${0}'."
@@ -44,7 +44,7 @@ if [ -d ${output_dir} ]; then
     mv ${output_dir} ${output_dir}.bac
     mkdir ${output_dir}
 else
-    mkdir ${output_dir}
+    mkdir -p ${output_dir}
 fi
 
 

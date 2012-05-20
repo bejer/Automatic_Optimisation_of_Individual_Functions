@@ -5,7 +5,7 @@ function internal_error () {
     exit 1
 }
 
-path_to_latex="${HOME}/Temp/master_thesis_latex"
+path_to_latex="${PATH_TO_MASTER_THESIS_LATEX}"
 # This info is needed in the latex generating functions as the paths used for \input{} has to be relative from the latex root dir (where the master is).
 analysis_path="analysis_results"
 
