@@ -5,11 +5,12 @@ input.file <- args[1]
 
 # Other arguments
 gf.all.means.file <- args[2]
-gf.all.bartlett.file <- args[3]
-gf.selected.bartlett.file <- args[4]
-gf.all.aov.summary.file <- args[5]
-gf.selected.aov.summary.file <- args[6]
-myanova.aov.file <- args[7]
+gf.all.means.sd.file <- args[3]
+gf.all.bartlett.file <- args[4]
+gf.selected.bartlett.file <- args[5]
+gf.all.aov.summary.file <- args[6]
+gf.selected.aov.summary.file <- args[7]
+myanova.aov.file <- args[8]
 
 # It is necessary to specify colClasses to make the GF, RO and FO columns appear as factors (especially needed when the factors aren't interpreted as strings in the R parser)
 data <- read.table(input.file, header = TRUE, colClasses = c("factor", "factor", "factor", "numeric"))
@@ -22,6 +23,12 @@ gf.selected.data <- gf.all.data[which(gf.all.data$GF != "-O0"),]
 gf.all.means <- aggregate(Performance ~ GF, data = gf.all.data, FUN = mean)
 # Output the means
 capture.output(gf.all.means, file = gf.all.means.file, append = FALSE)
+
+# Find std. dev of the gf.all groups
+gf.all.means.sd <- aggregate(Performance ~ GF, data = gf.all.data, FUN = sd)
+# Output the std. devs
+capture.output(gf.all.means.sd, file = gf.all.means.sd.file, append = FALSE)
+
 
 # Perform Bartlett's test
 gf.all.bartlett <- bartlett.test(Performance ~ GF, data = gf.all.data)

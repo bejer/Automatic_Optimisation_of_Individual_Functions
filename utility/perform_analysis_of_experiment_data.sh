@@ -31,6 +31,7 @@ for file in `ls ${path_to_data}/data_table_for_001_*.txt`; do
     postfix="gprof_${gp}_function_${fn}"
     # The files are just getting overwritten (from within R)
     means_gf_all="${prefix}means_gf_all_${postfix}.txt"
+    means_sd_gf_all="${prefix}means_sd_gf_all_${postfix}.txt"
     bartlett_gf_all="${prefix}bartlett_gf_all_${postfix}.txt"
     bartlett_gf_selected="${prefix}bartlett_gf_selected_${postfix}.txt"
     anova_summary_gf_all="${prefix}anova_summary_gf_all_${postfix}.txt"
@@ -40,7 +41,7 @@ for file in `ls ${path_to_data}/data_table_for_001_*.txt`; do
     bartlett_anova_all="${prefix}bartlett_anova_all_${postfix}.txt"
     
     # Run the R-script (giving the right arguments in a proper order)
-    Rscript ${r_script} ${file} ${means_gf_all} ${bartlett_gf_all} ${bartlett_gf_selected} ${anova_summary_gf_all} ${anova_summary_gf_selected} ${anova_summary_all}
+    Rscript ${r_script} ${file} ${means_gf_all} ${means_sd_gf_all} ${bartlett_gf_all} ${bartlett_gf_selected} ${anova_summary_gf_all} ${anova_summary_gf_selected} ${anova_summary_all}
 
     # Make the Bartlett's test on the groups producing anova_summary_all
     # Make a temporary file containing the needed data and have them appear as one factor with multiple values, e.g. Groups

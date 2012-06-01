@@ -32,7 +32,7 @@ path_to_latex="${PATH_TO_MASTER_THESIS_LATEX}/analysis_results"
 
 
 # 'subrun' is a quick work around for having multiple runs for each program (e.g. one before and after improved data quality) - has to be manually changed in this source file... i.e. quick work around.
-subrun="/02"
+subrun="/01"
 output_dir="${path_to_latex}/${program_name}${subrun}"
 
 read -p "Warning (part of quick work around): the chosen subrun is '${subrun}', if this is correct press enter or abort now and change this script '${0}'."
@@ -93,7 +93,25 @@ for file in `ls ${path_for_analysis_files}/analysis_statistics_*.txt`; do
 	    awk -F ' ' 'NR == 5 { print ; }' ${file} | sed 's/Bartlett.s K-squared = //' | sed 's/, df = / \& /' | sed 's/, p-value = \([0-9\.e\-]\+\)/ \& \1\\\\/' | sed 's/, p-value < \([0-9\.e\-]\+\)/ \& $<$ \1\\\\/' >> ${output_file}
 	    ;;
 	"means_gf_all")
-	    awk -F ' ' 'NR != 1 { print $2" & "$3"\\\\"; }' ${file} > ${output_file}
+#	    awk -F ' ' 'NR != 1 { print $2" & "$3"\\\\"; }' ${file} > ${output_file}
+	    # Work around to add standard deviation
+	    file_means_sd=`echo "${file}" | sed 's/means_gf_all/means_sd_gf_all/'`
+	    # Very quick hardcoded work around... Not liking it but time is essential...
+	    means_sd_holder_1=`awk -F ' ' 'NR == 2 { print " & "$3; }' ${file_means_sd}`
+	    means_sd_holder_2=`awk -F ' ' 'NR == 3 { print " & "$3; }' ${file_means_sd}`
+	    means_sd_holder_3=`awk -F ' ' 'NR == 4 { print " & "$3; }' ${file_means_sd}`
+	    means_sd_holder_4=`awk -F ' ' 'NR == 5 { print " & "$3; }' ${file_means_sd}`
+	    means_holder_1=`awk -F ' ' 'NR == 2 { print $2" & "$3; }' ${file}`
+	    means_holder_2=`awk -F ' ' 'NR == 3 { print $2" & "$3; }' ${file}`
+	    means_holder_3=`awk -F ' ' 'NR == 4 { print $2" & "$3; }' ${file}`
+	    means_holder_4=`awk -F ' ' 'NR == 5 { print $2" & "$3; }' ${file}`
+	    echo "${means_holder_1}${means_sd_holder_1}\\\\" > ${output_file}
+	    echo "${means_holder_2}${means_sd_holder_2}\\\\" >> ${output_file}
+	    echo "${means_holder_3}${means_sd_holder_3}\\\\" >> ${output_file}
+	    echo "${means_holder_4}${means_sd_holder_4}\\\\" >> ${output_file}
+	    ;;
+	"means_sd_gf_all")
+	    # Do nothing as this is a quick work around for adding standard deviation to the "means_gf_all"
 	    ;;
 	*)
 	    my_error "The found analysis case is not supported - aborting..."

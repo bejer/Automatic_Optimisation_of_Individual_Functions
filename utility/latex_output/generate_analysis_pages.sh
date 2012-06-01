@@ -133,9 +133,9 @@ function generate_means_table () {
 	internal_error "The function 'generate_means_table' needs 3 arguments."
     fi
 	
-    echo "\begin{longtable}{c|c}" >> ${output_file}
+    echo "\begin{longtable}{c|c|c}" >> ${output_file}
     echo "\hline" >> ${output_file}
-    header_line="\textbf{Global Flag} & \textbf{Mean}\\\\"
+    header_line="\textbf{Global Flag} & \textbf{Mean} & \textbf{Std. Deviation}\\\\"
     echo "${header_line}" >> ${output_file}
     echo "\hline" >> ${output_file}
     echo "\endfirsthead" >> ${output_file}
@@ -143,7 +143,7 @@ function generate_means_table () {
     echo "${header_line}" >> ${output_file}
     echo "\hline" >> ${output_file}
     echo "\endhead" >> ${output_file}
-    echo "\hline \multicolumn{2}{r}{{Continues...}}\\" >> ${output_file}
+    echo "\hline \multicolumn{3}{r}{{Continues...}}\\" >> ${output_file}
     echo "\endfoot" >> ${output_file}
     echo "\hline" >> ${output_file}
     echo "${caption}" >> ${output_file}
@@ -187,17 +187,17 @@ function generate_latex () {
     # ANOVA summary all
     # OBS: hardcoded data_file path
     data_file="${data_file_prefix}/anova_summary_all_gprof_${gp}_function_${fn}.tex"
-    caption="\caption{\textcolor{red}{This caption should be set.}. The interaction between factors is shown as \$<\$factor\$>\$:\$<\$factor\$>\$.}"
+    caption="\caption{ANOVA summary for the 3 factors. Interaction between factors is shown as \$<\$factor\$>\$:\$<\$factor\$>\$.}"
     generate_anova_summary_table "${output_file}" "${data_file}" "${caption}"
 
     # ANOVA summary gf all
     data_file="${data_file_prefix}/anova_summary_gf_all_gprof_${gp}_function_${fn}.tex"
-    caption="\caption{\textcolor{red}{This caption should be set.}. ANOVA summary for all global flags.}"
+    caption="\caption{ANOVA summary for all global flags.}"
     generate_anova_summary_table "${output_file}" "${data_file}" "${caption}"
 
     # ANOVA summary gf selected
     data_file="${data_file_prefix}/anova_summary_gf_selected_gprof_${gp}_function_${fn}.tex"
-    caption="\caption{\textcolor{red}{This caption should be set.}. ANOVA summary of selected global flags.}"
+    caption="\caption{ANOVA summary of selected global flags.}"
     generate_anova_summary_table "${output_file}" "${data_file}" "${caption}"
 
     # # Bartlett anova all
@@ -219,13 +219,13 @@ function generate_latex () {
     data_file_1="${data_file_prefix}/bartlett_anova_all_gprof_${gp}_function_${fn}.tex"
     data_file_2="${data_file_prefix}/bartlett_gf_all_gprof_${gp}_function_${fn}.tex"
     data_file_3="${data_file_prefix}/bartlett_gf_selected_gprof_${gp}_function_${fn}.tex"
-    caption="\caption{\textcolor{red}{This caption should be set.}. Bartlett's test on the groups involved in the 3 different ANOVA tables.}"
+    caption="\caption{Bartlett's test on the groups involved in the 3 different ANOVA tables.}"
     # Could place labels on the ANOVA tables and generate references to the 3 tables here (placed in the caption)
     generate_bartlett_table_multiple "${output_file}" "${data_file_1} ${data_file_2} ${data_file_3}" "${caption}"
 
-    # Means gf all
+    # Means gf all ( and std. deviations )
     data_file="${data_file_prefix}/means_gf_all_gprof_${gp}_function_${fn}.tex"
-    caption="\caption{\textcolor{red}{This caption should be set.}. Means for the groups used in the ANOVA on all global flags.}"
+    caption="\caption{Means and their corresponding standard deviations for the groups used in the ANOVA on all global flags.}"
     generate_means_table "${output_file}" "${data_file}" "${caption}"
 
     echo "\clearpage" >> ${output_file}
